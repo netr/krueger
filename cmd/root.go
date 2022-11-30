@@ -100,13 +100,7 @@ It uses a UDP connection to get your hostname IP every second.`,
 	out:
 		for {
 			if getMyIP().String() != originalIP {
-				for _, proc := range cfgProcs {
-					for {
-						if err := kill(proc); err != nil {
-							break
-						}
-					}
-				}
+				freddy(cfgProcs)
 
 				pterm.Println(pterm.BgRed.Sprintf(" ATTENTION ") + " Your IP has changed from: " + pterm.Magenta(originalIP) + " to: " + pterm.Red(getMyIP().String()))
 				pterm.Println(pterm.BgDarkGray.Sprintf(" GOODNIGHT ") + " Terminating Processes and Krueger...")
@@ -120,9 +114,29 @@ It uses a UDP connection to get your hostname IP every second.`,
 	},
 }
 
+func freddy(cfgProcs []string) {
+	procs, err := process.Processes()
+	if err != nil {
+		panic(err)
+	}
+	for _, p := range procs {
+		name, err := p.Name()
+		if err != nil {
+			continue
+		}
+		if includes(cfgProcs, name) {
+			for {
+				if err := kill(name); err != nil {
+					break
+				}
+			}
+		}
+	}
+}
+
 func includes(src []string, name string) bool {
 	for _, s := range src {
-		if strings.Contains(strings.ToLower(s), strings.ToLower(name)) {
+		if strings.Contains(strings.ToLower(name), strings.ToLower(s)) {
 			return true
 		}
 	}
