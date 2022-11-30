@@ -188,7 +188,6 @@ func initConfig() {
 		}
 
 		// Search config in home directory with name ".krueger" (without extension).
-		fmt.Println(home)
 		viper.AddConfigPath(home)
 		viper.AddConfigPath(home + "/.config")
 		viper.SetConfigName(".krueger")
