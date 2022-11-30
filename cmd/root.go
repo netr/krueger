@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/pterm/pterm"
 	"github.com/pterm/pterm/putils"
@@ -32,18 +33,38 @@ It uses a UDP connection to get your hostname IP every second.`,
 			panic(err)
 		}
 
-		cfgProcs := strings.Split(viper.GetString("processes"), ",")
-		count := 0
+		originalIP := getMyIP().String()
+
+		var cfgProcs []string
+		if len(viper.GetString("processes")) > 0 {
+			cfgProcs = strings.Split(viper.GetString("processes"), ",")
+		}
+
+		if len(cfgProcs) == 0 {
+			pterm.Println("No config file found at: " + pterm.Yellow(`$HOME/.config/.krueger.yaml`))
+			pterm.Println("Please type the processes you want to monitor below.")
+			pterm.Println("Typical use: " + pterm.Cyan("brave,firefox,chrome,safari,signal,keybase"))
+			pterm.Println()
+
+			result, _ := pterm.DefaultInteractiveTextInput.
+				WithMultiLine(false).
+				WithDefaultText("Type process names").Show()
+			pterm.Println()
+
+			cfgProcs = strings.Split(result, ",")
+			if len(cfgProcs) == 0 {
+				return
+			}
+
+		}
 
 		procs, err := process.Processes()
 		if err != nil {
 			panic(err)
 		}
 
-		tableData := pterm.TableData{
-			{"PID", "Process Name"},
-		}
-
+		tableData := pterm.TableData{{"PID", "Process Name"}}
+		count := 0
 		for _, p := range procs {
 			procName, err := p.Name()
 			if err != nil {
@@ -55,23 +76,44 @@ It uses a UDP connection to get your hostname IP every second.`,
 			}
 		}
 
-		pterm.DefaultBigText.WithLetters(
+		if err := pterm.DefaultBigText.WithLetters(
 			putils.LettersFromStringWithRGB("Krueger", pterm.NewRGB(255, 150, 40))).
-			Render()
+			Render(); err != nil {
+			panic(err)
+		}
 
-		pterm.Println(pterm.Normal("Watching: ") + pterm.Blue(viper.GetString("processes")))
-
+		pterm.Println(pterm.Normal("Watching: ") + pterm.Blue(strings.Join(cfgProcs, ", ")))
 		pterm.Println(pterm.Normal("Protecting ") + pterm.Green(count) + pterm.Normal("/") + pterm.Gray(len(procs)) + pterm.Normal(" Processes"))
-
-		pterm.Println("Current IP: " + pterm.Magenta(getMyIP().String()) + "\n")
+		pterm.Println("Current IP: " + pterm.Magenta(originalIP) + "\n")
 
 		if debug {
-			pterm.DefaultTable.WithHasHeader().WithData(tableData).WithRightAlignment().Render()
+			if err := pterm.DefaultTable.WithHasHeader().WithData(tableData).WithRightAlignment().Render(); err != nil {
+				panic(err)
+			}
 		}
 
 		ch := make(chan struct{})
-		pterm.DefaultSpinner.Start("Monitoring connection. You are currently " + pterm.BgGreen.Sprintf(" SAFE ") + ".")
+		start, err := pterm.DefaultSpinner.Start("Monitoring connection. You are currently " + pterm.BgGreen.Sprintf(" SAFE ") + ".")
+		if err != nil {
+			panic(err)
+		}
+
+		for {
+			if getMyIP().String() != originalIP {
+				for _, proc := range cfgProcs {
+					for {
+						if err := kill(proc); err != nil {
+							break
+						}
+					}
+				}
+				break
+			}
+			time.Sleep(time.Millisecond * 100)
+		}
+
 		<-ch
+		_ = start.Stop()
 		return
 	},
 }
@@ -87,15 +129,32 @@ func includes(src []string, name string) bool {
 
 // Get preferred outbound ip of this machine
 func getMyIP() net.IP {
-	conn, err := net.Dial("udp", "8.8.8.8:80")
+	conn, err := net.Dial("udp", "0.0.0.1:80")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer conn.Close()
 
 	localAddr := conn.LocalAddr().(*net.UDPAddr)
-
 	return localAddr.IP
+}
+
+// kill iterates through all processors and kills the first matching name
+func kill(name string) error {
+	processes, err := process.Processes()
+	if err != nil {
+		return err
+	}
+	for _, p := range processes {
+		n, err := p.Name()
+		if err != nil {
+			return err
+		}
+		if n == name {
+			return p.Kill()
+		}
+	}
+	return fmt.Errorf("process not found")
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -109,7 +168,7 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.krueger.yaml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.config/.krueger.yaml)")
 	rootCmd.Flags().BoolP("debug", "d", false, "Debug mode")
 }
 
@@ -127,7 +186,9 @@ func initConfig() {
 		}
 
 		// Search config in home directory with name ".krueger" (without extension).
+		fmt.Println(home)
 		viper.AddConfigPath(home)
+		viper.AddConfigPath(home + "/.config")
 		viper.SetConfigName(".krueger")
 	}
 

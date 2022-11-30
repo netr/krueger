@@ -4,6 +4,7 @@ go 1.19
 
 require (
 	github.com/mitchellh/go-homedir v1.1.0
+	github.com/pterm/pterm v0.12.50
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/viper v1.14.0
@@ -24,7 +25,6 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.5 // indirect
-	github.com/pterm/pterm v0.12.50 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/spf13/afero v1.9.2 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
