@@ -92,12 +92,12 @@ It uses a UDP connection to get your hostname IP every second.`,
 			}
 		}
 
-		ch := make(chan struct{})
 		start, err := pterm.DefaultSpinner.Start("Monitoring connection. You are currently " + pterm.BgGreen.Sprintf(" SAFE ") + ".")
 		if err != nil {
 			panic(err)
 		}
 
+	out:
 		for {
 			if getMyIP().String() != originalIP {
 				for _, proc := range cfgProcs {
@@ -107,12 +107,14 @@ It uses a UDP connection to get your hostname IP every second.`,
 						}
 					}
 				}
-				break
+
+				pterm.Println(pterm.BgRed.Sprintf(" ATTENTION ") + " Your IP has changed from: " + pterm.Magenta(originalIP) + " to: " + pterm.Red(getMyIP().String()))
+				pterm.Println(pterm.BgDarkGray.Sprintf(" GOODNIGHT ") + " Terminating Processes and Krueger...")
+				break out
 			}
 			time.Sleep(time.Millisecond * 100)
 		}
 
-		<-ch
 		_ = start.Stop()
 		return
 	},
