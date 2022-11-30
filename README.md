@@ -6,6 +6,7 @@ all the processes that you've set will be shutdown immediately.
 It uses a UDP connection to get your hostname IP every second.
 
 For ease of use, it detects the IP address you're connected to when you start Krueger and will shut down if it ever changes.
+![Screenshot of Krueger running](https://i.postimg.cc/zDdL7HJn/Screenshot-from-2022-11-29-22-56-35.png)]
 
 ## Basic Usage
 ~/.config/.krueger.yaml
