@@ -1,6 +1,6 @@
 package main
 
-import "krueger/cmd"
+import "github.com/netr/krueger/cmd"
 
 func main() {
 	cmd.Execute()

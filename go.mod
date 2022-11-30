@@ -1,4 +1,4 @@
-module krueger
+module github.com/netr/krueger
 
 go 1.19
 
