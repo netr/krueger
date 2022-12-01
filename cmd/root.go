@@ -18,7 +18,11 @@ import (
 	"github.com/spf13/viper"
 )
 
-var cfgFile string
+var (
+	cfgFile    string
+	cfgProcs   []string
+	originalIP string
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -34,9 +38,8 @@ It uses a UDP connection to get your hostname IP every second.`,
 			panic(err)
 		}
 
-		originalIP := getMyIP().String()
+		originalIP = getMyIP().String()
 
-		var cfgProcs []string
 		if len(viper.GetString("processes")) > 0 {
 			cfgProcs = strings.Split(viper.GetString("processes"), ",")
 		}
@@ -59,23 +62,7 @@ It uses a UDP connection to get your hostname IP every second.`,
 
 		}
 
-		procs, err := process.Processes()
-		if err != nil {
-			panic(err)
-		}
-
-		tableData := pterm.TableData{{"PID", "Process Name"}}
-		count := 0
-		for _, p := range procs {
-			procName, err := p.Name()
-			if err != nil {
-				panic(err)
-			}
-			if includes(cfgProcs, procName) {
-				tableData = append(tableData, []string{fmt.Sprintf("%d", p.Pid), procName})
-				count++
-			}
-		}
+		tableData := buildProcessTableData(cfgProcs)
 
 		if err := pterm.DefaultBigText.WithLetters(
 			putils.LettersFromStringWithRGB("Krueger", pterm.NewRGB(255, 150, 40))).
@@ -83,9 +70,8 @@ It uses a UDP connection to get your hostname IP every second.`,
 			panic(err)
 		}
 
-		pterm.Println(pterm.Normal("Watching: ") + pterm.Blue(strings.Join(cfgProcs, ", ")))
-		pterm.Println(pterm.Normal("Protecting ") + pterm.Green(count) + pterm.Normal("/") + pterm.Gray(len(procs)) + pterm.Normal(" Processes"))
-		pterm.Println("Current IP: " + pterm.Magenta(originalIP) + "\n")
+		// Time, Watching, Protecting, IP
+		setupStatisticsAreaAndTimer()
 
 		if debug {
 			if err := pterm.DefaultTable.WithHasHeader().WithData(tableData).WithRightAlignment().Render(); err != nil {
@@ -115,6 +101,74 @@ It uses a UDP connection to get your hostname IP every second.`,
 	},
 }
 
+// setupStatisticsAreaAndTimer will create an updatable area printer and update stats once a minute. (Time, Watching, Protecting, Current IP)
+func setupStatisticsAreaAndTimer() {
+	area, _ := pterm.DefaultArea.Start()
+	currentTimeStr := pterm.Sprintln("Time: " + pterm.Yellow(time.Now().Format(time.RFC850)) + "\n")
+	watchingStr := pterm.Sprintln(pterm.Normal("Watching: ") + pterm.Blue(strings.Join(cfgProcs, ", ")))
+
+	cntProtected, cntTotal := getProtectedProcessCounts(cfgProcs)
+	protectStr := pterm.Sprintln(pterm.Normal("Protecting ") + pterm.Green(cntProtected) + pterm.Normal("/") + pterm.Gray(cntTotal) + pterm.Normal(" Processes"))
+
+	currentIpStr := pterm.Sprintln("Current IP: " + pterm.Magenta(originalIP))
+	area.Update(currentTimeStr, watchingStr, protectStr, currentIpStr)
+
+	go func() {
+		for _ = range time.Tick(time.Minute * 1) {
+			currentTimeStr = pterm.Sprintln("Time: " + pterm.Yellow(time.Now().Format(time.RFC850)) + "\n")
+
+			cntProtected, cntTotal = getProtectedProcessCounts(cfgProcs)
+			protectStr = pterm.Sprintln(pterm.Normal("Protecting ") + pterm.Green(cntProtected) + pterm.Normal("/") + pterm.Gray(cntTotal) + pterm.Normal(" Processes"))
+
+			currentIpStr = pterm.Sprintln("Current IP: " + pterm.Magenta(originalIP))
+			area.Update(currentTimeStr, watchingStr, protectStr, currentIpStr)
+		}
+	}()
+}
+
+func buildProcessTableData(cfgProcs []string) [][]string {
+	procNames, procIds := getProcessData()
+	tableData := pterm.TableData{{"PID", "Process Name"}}
+	for i, procName := range procNames {
+		if includes(cfgProcs, procName) {
+			tableData = append(tableData, []string{fmt.Sprintf("%d", procIds[i]), procName})
+		}
+	}
+	return tableData
+}
+
+// getProtectedProcessCounts will get every process running on the machine and count how many the user is 'protecting'.
+func getProtectedProcessCounts(cfgProcs []string) (protected int, total int) {
+	procNames, _ := getProcessData()
+	for _, procName := range procNames {
+		if includes(cfgProcs, procName) {
+			protected++
+		}
+		total++
+	}
+	return
+}
+
+// getProcessData get all process names and their corresponding IDs and returns them as paired arrays
+func getProcessData() (names []string, procIds []int32) {
+	procs, err := process.Processes()
+	if err != nil {
+		panic(err)
+	}
+	names = make([]string, len(procs))
+	procIds = make([]int32, len(procs))
+	for _, p := range procs {
+		procName, err := p.Name()
+		if err != nil {
+			panic(err)
+		}
+		names = append(names, procName)
+		procIds = append(procIds, p.Pid)
+	}
+	return
+}
+
+// freddy kill kill kill
 func freddy(cfgProcs []string) {
 	procs, err := process.Processes()
 	if err != nil {
@@ -135,9 +189,10 @@ func freddy(cfgProcs []string) {
 	}
 }
 
-func includes(src []string, name string) bool {
-	for _, s := range src {
-		if strings.Contains(strings.ToLower(name), strings.ToLower(s)) {
+// includes some needle in a haystack
+func includes(haystack []string, needle string) bool {
+	for _, s := range haystack {
+		if strings.Contains(strings.ToLower(needle), strings.ToLower(s)) {
 			return true
 		}
 	}
