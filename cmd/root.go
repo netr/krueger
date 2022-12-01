@@ -126,6 +126,7 @@ func setupStatisticsAreaAndTimer() {
 	}()
 }
 
+// buildProcessTableData is a helper function used in debug mode to see all the processes in a clean format.
 func buildProcessTableData(cfgProcs []string) [][]string {
 	procNames, procIds := getProcessData()
 	tableData := pterm.TableData{{"PID", "Process Name"}}
@@ -206,7 +207,9 @@ func getMyIP() net.IP {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer conn.Close()
+	defer func(conn net.Conn) {
+		_ = conn.Close()
+	}(conn)
 
 	localAddr := conn.LocalAddr().(*net.UDPAddr)
 	return localAddr.IP
@@ -235,7 +238,10 @@ func kill(name string) error {
 func Execute() {
 	c, b := exec.Command("git", "describe", "--tag"), new(strings.Builder)
 	c.Stdout = b
-	c.Run()
+	err := c.Run()
+	if err != nil {
+		panic(err)
+	}
 	s := strings.TrimRight(b.String(), "\n")
 	rootCmd.Version = s
 
