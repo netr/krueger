@@ -238,10 +238,7 @@ func kill(name string) error {
 func Execute() {
 	c, b := exec.Command("git", "describe", "--tag"), new(strings.Builder)
 	c.Stdout = b
-	err := c.Run()
-	if err != nil {
-		panic(err)
-	}
+	_ = c.Run()
 	s := strings.TrimRight(b.String(), "\n")
 	rootCmd.Version = s
 
