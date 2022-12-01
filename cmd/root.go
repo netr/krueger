@@ -150,13 +150,14 @@ func getProtectedProcessCounts(cfgProcs []string) (protected int, total int) {
 }
 
 // getProcessData get all process names and their corresponding IDs and returns them as paired arrays
-func getProcessData() (names []string, procIds []int32) {
+func getProcessData() ([]string, []int32) {
 	procs, err := process.Processes()
 	if err != nil {
 		panic(err)
 	}
-	names = make([]string, len(procs))
-	procIds = make([]int32, len(procs))
+
+	var names []string
+	var procIds []int32
 	for _, p := range procs {
 		procName, err := p.Name()
 		if err != nil {
@@ -165,7 +166,7 @@ func getProcessData() (names []string, procIds []int32) {
 		names = append(names, procName)
 		procIds = append(procIds, p.Pid)
 	}
-	return
+	return names, procIds
 }
 
 // freddy kill kill kill
