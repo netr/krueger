@@ -59,7 +59,6 @@ It uses a UDP connection to get your hostname IP every second.`,
 			if len(cfgProcs) == 0 {
 				return
 			}
-
 		}
 
 		tableData := buildProcessTableData(cfgProcs)
@@ -115,6 +114,7 @@ func setupStatisticsAreaAndTimer() {
 
 	go func() {
 		for _ = range time.Tick(time.Minute * 1) {
+			area.Clear()
 			currentTimeStr = pterm.Sprintln("Time: " + pterm.Yellow(time.Now().Format(time.RFC850)) + "\n")
 
 			cntProtected, cntTotal = getProtectedProcessCounts(cfgProcs)
@@ -154,7 +154,7 @@ func getProtectedProcessCounts(cfgProcs []string) (protected int, total int) {
 func getProcessData() ([]string, []int32) {
 	procs, err := process.Processes()
 	if err != nil {
-		panic(err)
+		return []string{}, []int32{}
 	}
 
 	var names []string
@@ -162,7 +162,7 @@ func getProcessData() ([]string, []int32) {
 	for _, p := range procs {
 		procName, err := p.Name()
 		if err != nil {
-			panic(err)
+			continue
 		}
 		names = append(names, procName)
 		procIds = append(procIds, p.Pid)
